@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div style="background-color: black; color: white;" id="connectionId"></div>
+    <div id="status" style="display: none;"></div>
+
+    <input type="text" id="txt" placeholder="Messages">
+    <br>
+    <input type="text" id="groups" placeholder="Groups">
+    <br>
+    <button id="btn">send</button>
+
+    <div id="messages"></div>
+
+    <div>
+        <ul id="clients"></ul>
+    </div>
+
+    <input type="radio" name="group" value="A">A
+    <input type="radio" name="group" value="B">B
+    <input type="radio" name="group" value="C">C
+    <button id="groupBtn">Enter Group</button>
+
+    <textarea name="" id="connectionIds"></textarea>
+
+
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <script>
+        $(document).ready(() => {
+            const connection = new signalR.HubConnectionBuilder()
+            .withUrl('https://localhost:7228/messagehub')
+            .withAutomaticReconnect([1000, 1000, 2000, 3000, 5000, 10000]) // 0, 2, 10, 30 seconds
+            .build();
+
+            async function start() {
+                try {
+                    await connection.start()
+                } catch (error) {
+                    setTimeout(() => start(), 2000);
+                }
+            };
+
+            start();
+
+            const status = $("#status")
+
+            connection.onreconnecting(error => {
+                status.css("background-color", "blue");
+                status.css("color", "white");
+                status.html('onreconnecting');
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000)
+                    }, 2000);
+                });
+            });
+
+            connection.onreconnected(connectionId => {
+                status.css("background-color", "green");
+                status.css("color", "white");
+                status.html('onreconnected');
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000)
+                    }, 2000);
+                });
+            });
+
+            connection.onclose(connectionId => {
+                status.css("background-color", "red");
+                status.css("color", "white");
+                status.html('onclose');
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000)
+                    }, 2000);
+                });
+            });
+
+            //#region User
+            // connection.on("userJoined", message => {
+            //     status.css("background-color", "green");
+            //     status.css("color", "white");
+            //     status.html(message);
+            //     status.fadeIn(2000, () => {
+            //         setTimeout(() => {
+            //             status.fadeOut(2000)
+            //         }, 2000);
+            //     });
+            // });
+            
+            // connection.on("userLeaved", message => {
+            //     status.css("background-color", "red");
+            //     status.css("color", "white");
+            //     status.html(message);
+            //     status.fadeIn(2000, () => {
+            //         setTimeout(() => {
+            //             status.fadeOut(2000)
+            //         }, 2000);
+            //     });
+            // });
+            //#endregion
+
+            connection.on("clients", data => {
+                let text = "";
+                $.each(data, (index, item) => {
+                    text += `<li>${item}</li>`;
+                });
+                $("#clients").html(text);
+            })
+
+            $('#btn').click(() => {
+                let message = $('#txt').val();
+                let connectionIds = $("#connectionIds").val().split(",");
+                let groups = $("#groups").val().split(",");
+                let grName = $('input[name=group]:checked').val();
+                // connection.invoke("SendMessageAsync", message, grName, connectionIds)
+                // connection.invoke("SendMessageAsync", message, groups)
+                connection.invoke("SendMessageAsync", message, grName)
+                .catch(error => console.error(error));
+            });
+
+            connection.on("receiveMessage", message => {
+                $('#messages').append(message + "<br>");
+            });
+            
+            let _connectionId = "";
+            connection.on("getConnectionId", connectionId => {
+                _connectionId = connectionId;
+                $("#connectionId").html(`${connectionId}`);
+            });
+            
+            $("#groupBtn").click(() => {
+                let grName = $('input[name=group]:checked').val();
+                connection.invoke("addgroup", _connectionId, grName).catch(error => console.error(error));
+            })
+            
+        });
+    </script>
+</body>
+</html>
